@@ -1,0 +1,12 @@
+{
+  "name": "erc8004-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "3.3.3"
+  }
+}
