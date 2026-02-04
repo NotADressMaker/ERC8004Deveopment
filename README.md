@@ -46,8 +46,6 @@ Endpoints:
 - `GET /agents/:agentId/feedback`
 - `GET /agents/:agentId/validations`
 - `GET /score` (optionally filter with `?agentId=123`)
-- `GET /jobs`
-- `GET /jobs/:jobId`
 
 ## Validator Service
 

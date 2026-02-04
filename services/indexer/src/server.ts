@@ -5,7 +5,6 @@ import { config } from "./config.js";
 import {
   applySchema,
   createDb,
-  getJobById,
   getAgentScore,
   getAgentById,
   getAgentFeedback,
@@ -84,24 +83,6 @@ app.get("/score", (req, res) => {
     return;
   }
   res.json(listAgentScores(db));
-});
-
-app.get("/jobs", (_req, res) => {
-  res.json(listJobs(db));
-});
-
-app.get("/jobs/:jobId", (req, res) => {
-  const jobId = Number(req.params.jobId);
-  const job = getJobById(db, jobId);
-  if (!job) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  res.json({
-    job,
-    milestones: listJobMilestones(db, jobId),
-    validations: listJobValidations(db, jobId),
-  });
 });
 
 app.listen(config.port, () => {
