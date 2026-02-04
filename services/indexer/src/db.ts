@@ -45,6 +45,21 @@ export type ValidationResponseRecord = {
   block_number: number;
 };
 
+export type ReviewerTrustRecord = {
+  reviewer: string;
+  allowlisted: number;
+  stake_weight: number;
+  identity_weight: number;
+  updated_block: number | null;
+};
+
+export type AgentScoreBreakdown = {
+  agent_id: number;
+  feedback_score: number;
+  validation_score: number;
+  reputation_score: number;
+};
+
 export function createDb(dbPath: string): Db {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   return new Database(dbPath);
@@ -168,19 +183,65 @@ export function insertValidationResponse(db: Db, response: ValidationResponseRec
   ).run(response);
 }
 
+export function upsertReviewerTrust(db: Db, trust: ReviewerTrustRecord): void {
+  db.prepare(
+    `INSERT INTO reviewer_trust(
+      reviewer,
+      allowlisted,
+      stake_weight,
+      identity_weight,
+      updated_block
+    ) VALUES (
+      @reviewer,
+      @allowlisted,
+      @stake_weight,
+      @identity_weight,
+      @updated_block
+    )
+    ON CONFLICT(reviewer) DO UPDATE SET
+      allowlisted = excluded.allowlisted,
+      stake_weight = excluded.stake_weight,
+      identity_weight = excluded.identity_weight,
+      updated_block = excluded.updated_block`
+  ).run(trust);
+}
+
+const reviewerWeightExpression =
+  "1 + COALESCE(t.allowlisted, 0) + COALESCE(t.stake_weight, 0) + COALESCE(t.identity_weight, 0)";
+
+const scoreCte = `
+  WITH scores AS (
+    SELECT a.agent_id,
+      COALESCE((
+        SELECT SUM(f.normalized_value * ${reviewerWeightExpression})
+        FROM feedback f
+        LEFT JOIN reviewer_trust t ON f.author = t.reviewer
+        WHERE f.agent_id = a.agent_id AND f.revoked = 0
+      ), 0) AS feedback_score,
+      COALESCE((
+        SELECT SUM(resp.response_score * ${reviewerWeightExpression})
+        FROM validation_requests r
+        LEFT JOIN validation_responses resp ON r.request_hash = resp.request_hash
+        LEFT JOIN reviewer_trust t ON r.validator = t.reviewer
+        WHERE r.agent_id = a.agent_id AND resp.response_score IS NOT NULL
+      ), 0) AS validation_score
+    FROM agents a
+  )
+`;
+
 export function listAgents(db: Db, search: string | null): Array<AgentRecord & { reputation_score: number }> {
   const query =
     search && search.trim()
-      ? `SELECT a.*, COALESCE(SUM(f.normalized_value), 0) as reputation_score
+      ? `${scoreCte}
+         SELECT a.*, (s.feedback_score + s.validation_score) AS reputation_score
          FROM agents a
-         LEFT JOIN feedback f ON a.agent_id = f.agent_id AND f.revoked = 0
+         JOIN scores s ON a.agent_id = s.agent_id
          WHERE a.agent_id LIKE ? OR a.agent_uri LIKE ? OR a.owner LIKE ?
-         GROUP BY a.agent_id
          ORDER BY reputation_score DESC`
-      : `SELECT a.*, COALESCE(SUM(f.normalized_value), 0) as reputation_score
+      : `${scoreCte}
+         SELECT a.*, (s.feedback_score + s.validation_score) AS reputation_score
          FROM agents a
-         LEFT JOIN feedback f ON a.agent_id = f.agent_id AND f.revoked = 0
-         GROUP BY a.agent_id
+         JOIN scores s ON a.agent_id = s.agent_id
          ORDER BY reputation_score DESC`;
   if (search && search.trim()) {
     const term = `%${search}%`;
@@ -192,13 +253,42 @@ export function listAgents(db: Db, search: string | null): Array<AgentRecord & {
 export function getAgentById(db: Db, agentId: number): (AgentRecord & { reputation_score: number }) | null {
   const row = db
     .prepare(
-      `SELECT a.*, COALESCE(SUM(f.normalized_value), 0) as reputation_score
+      `${scoreCte}
+       SELECT a.*, (s.feedback_score + s.validation_score) AS reputation_score
        FROM agents a
-       LEFT JOIN feedback f ON a.agent_id = f.agent_id AND f.revoked = 0
-       WHERE a.agent_id = ?
-       GROUP BY a.agent_id`
+       JOIN scores s ON a.agent_id = s.agent_id
+       WHERE a.agent_id = ?`
     )
     .get(agentId) as (AgentRecord & { reputation_score: number }) | undefined;
+  return row ?? null;
+}
+
+export function listAgentScores(db: Db): AgentScoreBreakdown[] {
+  return db
+    .prepare(
+      `${scoreCte}
+       SELECT s.agent_id,
+              s.feedback_score,
+              s.validation_score,
+              (s.feedback_score + s.validation_score) AS reputation_score
+       FROM scores s
+       ORDER BY reputation_score DESC`
+    )
+    .all() as AgentScoreBreakdown[];
+}
+
+export function getAgentScore(db: Db, agentId: number): AgentScoreBreakdown | null {
+  const row = db
+    .prepare(
+      `${scoreCte}
+       SELECT s.agent_id,
+              s.feedback_score,
+              s.validation_score,
+              (s.feedback_score + s.validation_score) AS reputation_score
+       FROM scores s
+       WHERE s.agent_id = ?`
+    )
+    .get(agentId) as AgentScoreBreakdown | undefined;
   return row ?? null;
 }
 
