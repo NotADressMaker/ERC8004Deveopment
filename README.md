@@ -45,6 +45,7 @@ Endpoints:
 - `GET /agents/:agentId`
 - `GET /agents/:agentId/feedback`
 - `GET /agents/:agentId/validations`
+- `GET /score` (optionally filter with `?agentId=123`)
 
 ## Validator Service
 
@@ -65,3 +66,11 @@ Browse agents, reputation, and validations without a wallet. Wallet is only requ
 ## Environment
 
 Copy `.env.example` to `.env` and adjust as needed.
+
+## GitHub Projects
+
+2) Reputation Indexer + Scoring API (anti-sybil, trust weighting)
+   - Index on-chain feedback + revocations + validation responses.
+   - Maintain a reputation score that weights reviewers (allowlists, stake, identity proofs).
+   - Expose `/agents`, `/agents/:id`, `/score` endpoints.
+   - Why: on-chain events are composable, but scoring is usually computed off-chain for speed and flexibility.

@@ -44,5 +44,13 @@ CREATE TABLE IF NOT EXISTS validation_responses (
   block_number INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS reviewer_trust (
+  reviewer TEXT PRIMARY KEY,
+  allowlisted INTEGER NOT NULL DEFAULT 0,
+  stake_weight REAL NOT NULL DEFAULT 0,
+  identity_weight REAL NOT NULL DEFAULT 0,
+  updated_block INTEGER
+);
+
 CREATE INDEX IF NOT EXISTS feedback_agent_idx ON feedback(agent_id);
 CREATE INDEX IF NOT EXISTS validation_request_agent_idx ON validation_requests(agent_id);
