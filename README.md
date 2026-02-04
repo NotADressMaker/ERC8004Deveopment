@@ -45,6 +45,9 @@ Endpoints:
 - `GET /agents/:agentId`
 - `GET /agents/:agentId/feedback`
 - `GET /agents/:agentId/validations`
+- `GET /score` (optionally filter with `?agentId=123`)
+- `GET /jobs`
+- `GET /jobs/:jobId`
 
 ## Validator Service
 
@@ -58,6 +61,12 @@ Endpoints:
 
 See `services/validator/README.md` for payload examples and plugin details.
 
+## Job Board + Escrow
+
+`JobBoardEscrow` posts jobs with off-chain job specs and on-chain commitment hashes. Payments are escrowed and released
+after validator-approved proofs via `ValidationRegistry`, with optional milestone-based payouts and a dispute window.
+If a dispute proposal is not accepted before the window closes, the job owner can reclaim the remaining escrow.
+
 ## Dashboard
 
 Browse agents, reputation, and validations without a wallet. Wallet is only required for submit actions.
@@ -65,3 +74,11 @@ Browse agents, reputation, and validations without a wallet. Wallet is only requ
 ## Environment
 
 Copy `.env.example` to `.env` and adjust as needed.
+
+## GitHub Projects
+
+2) Reputation Indexer + Scoring API (anti-sybil, trust weighting)
+   - Index on-chain feedback + revocations + validation responses.
+   - Maintain a reputation score that weights reviewers (allowlists, stake, identity proofs).
+   - Expose `/agents`, `/agents/:id`, `/score` endpoints.
+   - Why: on-chain events are composable, but scoring is usually computed off-chain for speed and flexibility.

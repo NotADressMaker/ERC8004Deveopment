@@ -6,6 +6,9 @@ import {
   getAgentFeedback,
   getAgentValidations,
   insertFeedback,
+  listJobs,
+  upsertJob,
+  upsertJobMilestone,
   insertValidationRequest,
   insertValidationResponse,
   listAgents,
@@ -67,5 +70,38 @@ describe("indexer db", () => {
     const validations = getAgentValidations(db, 2);
     expect(validations).toHaveLength(1);
     expect(validations[0].response_score).toBe(90);
+  });
+
+  it("stores jobs and milestones", () => {
+    const db = new Database(":memory:");
+    applySchema(db);
+    upsertJob(db, {
+      job_id: 1,
+      owner: "0xowner",
+      agent_id: null,
+      job_uri: "ipfs://jobs/job-1.json",
+      job_hash: "0xhash",
+      payment_token: "0x0000000000000000000000000000000000000000",
+      budget_amount: "1000000000000000000",
+      deadline: 100,
+      pass_threshold: 70,
+      dispute_window_seconds: 604800,
+      status: "open",
+      posted_block: 1,
+      awarded_block: null,
+      finalized_block: null,
+      released_amount: "0",
+    });
+    upsertJobMilestone(db, {
+      job_id: 1,
+      milestone_index: 0,
+      milestone_uri: "ipfs://jobs/job-1/milestone-0.json",
+      milestone_hash: "0xmilestone",
+      weight_bps: 6000,
+      paid: 0,
+    });
+    const jobs = listJobs(db);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].status).toBe("open");
   });
 });

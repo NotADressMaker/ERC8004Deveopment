@@ -45,6 +45,82 @@ export type ValidationResponseRecord = {
   block_number: number;
 };
 
+export type ReviewerTrustRecord = {
+  reviewer: string;
+  allowlisted: number;
+  stake_weight: number;
+  identity_weight: number;
+  updated_block: number | null;
+};
+
+export type AgentScoreBreakdown = {
+  agent_id: number;
+  feedback_score: number;
+  validation_score: number;
+  reputation_score: number;
+};
+
+export type JobRecord = {
+  job_id: number;
+  owner: string | null;
+  agent_id: number | null;
+  job_uri: string | null;
+  job_hash: string | null;
+  payment_token: string | null;
+  budget_amount: string | null;
+  deadline: number | null;
+  pass_threshold: number | null;
+  dispute_window_seconds: number | null;
+  status: string | null;
+  posted_block: number | null;
+  awarded_block: number | null;
+  finalized_block: number | null;
+  released_amount: string | null;
+};
+
+export type JobMilestoneRecord = {
+  job_id: number;
+  milestone_index: number;
+  milestone_uri: string | null;
+  milestone_hash: string | null;
+  weight_bps: number | null;
+  paid: number;
+};
+
+export type JobProofRecord = {
+  job_id: number;
+  milestone_index: number;
+  proof_uri: string | null;
+  proof_hash: string | null;
+  block_number: number | null;
+};
+
+export type JobValidationRecord = {
+  job_id: number;
+  milestone_index: number;
+  validator: string | null;
+  request_hash: string | null;
+  request_uri: string | null;
+  request_block: number | null;
+  response_score: number | null;
+  response_hash: string | null;
+  response_uri: string | null;
+  tag: string | null;
+  response_block: number | null;
+};
+
+export type JobDisputeRecord = {
+  job_id: number;
+  proposed_payout_bps: number | null;
+  dispute_uri: string | null;
+  dispute_hash: string | null;
+  accepted: number;
+  opened_block: number | null;
+  accepted_block: number | null;
+  reclaimed_block: number | null;
+  remainder_amount: string | null;
+};
+
 export function createDb(dbPath: string): Db {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   return new Database(dbPath);
@@ -168,19 +244,240 @@ export function insertValidationResponse(db: Db, response: ValidationResponseRec
   ).run(response);
 }
 
+export function upsertReviewerTrust(db: Db, trust: ReviewerTrustRecord): void {
+  db.prepare(
+    `INSERT INTO reviewer_trust(
+      reviewer,
+      allowlisted,
+      stake_weight,
+      identity_weight,
+      updated_block
+    ) VALUES (
+      @reviewer,
+      @allowlisted,
+      @stake_weight,
+      @identity_weight,
+      @updated_block
+    )
+    ON CONFLICT(reviewer) DO UPDATE SET
+      allowlisted = excluded.allowlisted,
+      stake_weight = excluded.stake_weight,
+      identity_weight = excluded.identity_weight,
+      updated_block = excluded.updated_block`
+  ).run(trust);
+}
+
+export function upsertJob(db: Db, job: JobRecord): void {
+  db.prepare(
+    `INSERT INTO jobs(
+      job_id,
+      owner,
+      agent_id,
+      job_uri,
+      job_hash,
+      payment_token,
+      budget_amount,
+      deadline,
+      pass_threshold,
+      dispute_window_seconds,
+      status,
+      posted_block,
+      awarded_block,
+      finalized_block,
+      released_amount
+    ) VALUES (
+      @job_id,
+      @owner,
+      @agent_id,
+      @job_uri,
+      @job_hash,
+      @payment_token,
+      @budget_amount,
+      @deadline,
+      @pass_threshold,
+      @dispute_window_seconds,
+      @status,
+      @posted_block,
+      @awarded_block,
+      @finalized_block,
+      @released_amount
+    )
+    ON CONFLICT(job_id) DO UPDATE SET
+      owner = COALESCE(excluded.owner, owner),
+      agent_id = COALESCE(excluded.agent_id, agent_id),
+      job_uri = COALESCE(excluded.job_uri, job_uri),
+      job_hash = COALESCE(excluded.job_hash, job_hash),
+      payment_token = COALESCE(excluded.payment_token, payment_token),
+      budget_amount = COALESCE(excluded.budget_amount, budget_amount),
+      deadline = COALESCE(excluded.deadline, deadline),
+      pass_threshold = COALESCE(excluded.pass_threshold, pass_threshold),
+      dispute_window_seconds = COALESCE(excluded.dispute_window_seconds, dispute_window_seconds),
+      status = COALESCE(excluded.status, status),
+      posted_block = COALESCE(excluded.posted_block, posted_block),
+      awarded_block = COALESCE(excluded.awarded_block, awarded_block),
+      finalized_block = COALESCE(excluded.finalized_block, finalized_block),
+      released_amount = COALESCE(excluded.released_amount, released_amount)`
+  ).run(job);
+}
+
+export function upsertJobMilestone(db: Db, milestone: JobMilestoneRecord): void {
+  db.prepare(
+    `INSERT INTO job_milestones(
+      job_id,
+      milestone_index,
+      milestone_uri,
+      milestone_hash,
+      weight_bps,
+      paid
+    ) VALUES (
+      @job_id,
+      @milestone_index,
+      @milestone_uri,
+      @milestone_hash,
+      @weight_bps,
+      @paid
+    )
+    ON CONFLICT(job_id, milestone_index) DO UPDATE SET
+      milestone_uri = excluded.milestone_uri,
+      milestone_hash = excluded.milestone_hash,
+      weight_bps = excluded.weight_bps,
+      paid = excluded.paid`
+  ).run(milestone);
+}
+
+export function upsertJobProof(db: Db, proof: JobProofRecord): void {
+  db.prepare(
+    `INSERT INTO job_proofs(
+      job_id,
+      milestone_index,
+      proof_uri,
+      proof_hash,
+      block_number
+    ) VALUES (
+      @job_id,
+      @milestone_index,
+      @proof_uri,
+      @proof_hash,
+      @block_number
+    )
+    ON CONFLICT(job_id, milestone_index) DO UPDATE SET
+      proof_uri = excluded.proof_uri,
+      proof_hash = excluded.proof_hash,
+      block_number = excluded.block_number`
+  ).run(proof);
+}
+
+export function upsertJobValidation(db: Db, validation: JobValidationRecord): void {
+  db.prepare(
+    `INSERT INTO job_validations(
+      job_id,
+      milestone_index,
+      validator,
+      request_hash,
+      request_uri,
+      request_block,
+      response_score,
+      response_hash,
+      response_uri,
+      tag,
+      response_block
+    ) VALUES (
+      @job_id,
+      @milestone_index,
+      @validator,
+      @request_hash,
+      @request_uri,
+      @request_block,
+      @response_score,
+      @response_hash,
+      @response_uri,
+      @tag,
+      @response_block
+    )
+    ON CONFLICT(job_id, milestone_index) DO UPDATE SET
+      validator = COALESCE(excluded.validator, validator),
+      request_hash = COALESCE(excluded.request_hash, request_hash),
+      request_uri = COALESCE(excluded.request_uri, request_uri),
+      request_block = COALESCE(excluded.request_block, request_block),
+      response_score = COALESCE(excluded.response_score, response_score),
+      response_hash = COALESCE(excluded.response_hash, response_hash),
+      response_uri = COALESCE(excluded.response_uri, response_uri),
+      tag = COALESCE(excluded.tag, tag),
+      response_block = COALESCE(excluded.response_block, response_block)`
+  ).run(validation);
+}
+
+export function upsertJobDispute(db: Db, dispute: JobDisputeRecord): void {
+  db.prepare(
+    `INSERT INTO job_disputes(
+      job_id,
+      proposed_payout_bps,
+      dispute_uri,
+      dispute_hash,
+      accepted,
+      opened_block,
+      accepted_block,
+      reclaimed_block,
+      remainder_amount
+    ) VALUES (
+      @job_id,
+      @proposed_payout_bps,
+      @dispute_uri,
+      @dispute_hash,
+      @accepted,
+      @opened_block,
+      @accepted_block,
+      @reclaimed_block,
+      @remainder_amount
+    )
+    ON CONFLICT(job_id) DO UPDATE SET
+      proposed_payout_bps = COALESCE(excluded.proposed_payout_bps, proposed_payout_bps),
+      dispute_uri = COALESCE(excluded.dispute_uri, dispute_uri),
+      dispute_hash = COALESCE(excluded.dispute_hash, dispute_hash),
+      accepted = excluded.accepted,
+      opened_block = COALESCE(excluded.opened_block, opened_block),
+      accepted_block = COALESCE(excluded.accepted_block, accepted_block),
+      reclaimed_block = COALESCE(excluded.reclaimed_block, reclaimed_block),
+      remainder_amount = COALESCE(excluded.remainder_amount, remainder_amount)`
+  ).run(dispute);
+}
+
+const reviewerWeightExpression =
+  "1 + COALESCE(t.allowlisted, 0) + COALESCE(t.stake_weight, 0) + COALESCE(t.identity_weight, 0)";
+
+const scoreCte = `
+  WITH scores AS (
+    SELECT a.agent_id,
+      COALESCE((
+        SELECT SUM(f.normalized_value * ${reviewerWeightExpression})
+        FROM feedback f
+        LEFT JOIN reviewer_trust t ON f.author = t.reviewer
+        WHERE f.agent_id = a.agent_id AND f.revoked = 0
+      ), 0) AS feedback_score,
+      COALESCE((
+        SELECT SUM(resp.response_score * ${reviewerWeightExpression})
+        FROM validation_requests r
+        LEFT JOIN validation_responses resp ON r.request_hash = resp.request_hash
+        LEFT JOIN reviewer_trust t ON r.validator = t.reviewer
+        WHERE r.agent_id = a.agent_id AND resp.response_score IS NOT NULL
+      ), 0) AS validation_score
+    FROM agents a
+  )
+`;
+
 export function listAgents(db: Db, search: string | null): Array<AgentRecord & { reputation_score: number }> {
   const query =
     search && search.trim()
-      ? `SELECT a.*, COALESCE(SUM(f.normalized_value), 0) as reputation_score
+      ? `${scoreCte}
+         SELECT a.*, (s.feedback_score + s.validation_score) AS reputation_score
          FROM agents a
-         LEFT JOIN feedback f ON a.agent_id = f.agent_id AND f.revoked = 0
+         JOIN scores s ON a.agent_id = s.agent_id
          WHERE a.agent_id LIKE ? OR a.agent_uri LIKE ? OR a.owner LIKE ?
-         GROUP BY a.agent_id
          ORDER BY reputation_score DESC`
-      : `SELECT a.*, COALESCE(SUM(f.normalized_value), 0) as reputation_score
+      : `${scoreCte}
+         SELECT a.*, (s.feedback_score + s.validation_score) AS reputation_score
          FROM agents a
-         LEFT JOIN feedback f ON a.agent_id = f.agent_id AND f.revoked = 0
-         GROUP BY a.agent_id
+         JOIN scores s ON a.agent_id = s.agent_id
          ORDER BY reputation_score DESC`;
   if (search && search.trim()) {
     const term = `%${search}%`;
@@ -192,13 +489,42 @@ export function listAgents(db: Db, search: string | null): Array<AgentRecord & {
 export function getAgentById(db: Db, agentId: number): (AgentRecord & { reputation_score: number }) | null {
   const row = db
     .prepare(
-      `SELECT a.*, COALESCE(SUM(f.normalized_value), 0) as reputation_score
+      `${scoreCte}
+       SELECT a.*, (s.feedback_score + s.validation_score) AS reputation_score
        FROM agents a
-       LEFT JOIN feedback f ON a.agent_id = f.agent_id AND f.revoked = 0
-       WHERE a.agent_id = ?
-       GROUP BY a.agent_id`
+       JOIN scores s ON a.agent_id = s.agent_id
+       WHERE a.agent_id = ?`
     )
     .get(agentId) as (AgentRecord & { reputation_score: number }) | undefined;
+  return row ?? null;
+}
+
+export function listAgentScores(db: Db): AgentScoreBreakdown[] {
+  return db
+    .prepare(
+      `${scoreCte}
+       SELECT s.agent_id,
+              s.feedback_score,
+              s.validation_score,
+              (s.feedback_score + s.validation_score) AS reputation_score
+       FROM scores s
+       ORDER BY reputation_score DESC`
+    )
+    .all() as AgentScoreBreakdown[];
+}
+
+export function getAgentScore(db: Db, agentId: number): AgentScoreBreakdown | null {
+  const row = db
+    .prepare(
+      `${scoreCte}
+       SELECT s.agent_id,
+              s.feedback_score,
+              s.validation_score,
+              (s.feedback_score + s.validation_score) AS reputation_score
+       FROM scores s
+       WHERE s.agent_id = ?`
+    )
+    .get(agentId) as AgentScoreBreakdown | undefined;
   return row ?? null;
 }
 
@@ -227,4 +553,25 @@ export function getAgentValidations(db: Db, agentId: number): Array<ValidationRe
        ORDER BY r.block_number DESC`
     )
     .all(agentId) as Array<ValidationRequestRecord & ValidationResponseRecord>;
+}
+
+export function listJobs(db: Db): JobRecord[] {
+  return db.prepare("SELECT * FROM jobs ORDER BY job_id DESC").all() as JobRecord[];
+}
+
+export function getJobById(db: Db, jobId: number): JobRecord | null {
+  const row = db.prepare("SELECT * FROM jobs WHERE job_id = ?").get(jobId) as JobRecord | undefined;
+  return row ?? null;
+}
+
+export function listJobMilestones(db: Db, jobId: number): JobMilestoneRecord[] {
+  return db
+    .prepare("SELECT * FROM job_milestones WHERE job_id = ? ORDER BY milestone_index")
+    .all(jobId) as JobMilestoneRecord[];
+}
+
+export function listJobValidations(db: Db, jobId: number): JobValidationRecord[] {
+  return db
+    .prepare("SELECT * FROM job_validations WHERE job_id = ? ORDER BY milestone_index")
+    .all(jobId) as JobValidationRecord[];
 }

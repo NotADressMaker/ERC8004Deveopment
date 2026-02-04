@@ -26,5 +26,14 @@ contract ValidationRegistryTest {
         bytes32 responseHash = keccak256(abi.encodePacked("response"));
         registry.validationResponse(requestHash, 92, "ipfs://response.json", responseHash, "accuracy");
         require(registry.responses(responseHash), "response missing");
+        (uint256 score, bytes32 storedHash, string memory responseURI, string memory tag) =
+            registry.responsesByRequest(requestHash);
+        require(score == 92, "score mismatch");
+        require(storedHash == responseHash, "response hash mismatch");
+        require(
+            keccak256(bytes(responseURI)) == keccak256(bytes("ipfs://response.json")),
+            "response uri mismatch"
+        );
+        require(keccak256(bytes(tag)) == keccak256(bytes("accuracy")), "tag mismatch");
     }
 }

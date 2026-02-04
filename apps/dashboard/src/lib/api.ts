@@ -43,7 +43,51 @@ export type HealthResponse = {
     identityRegistry: string;
     reputationRegistry: string;
     validationRegistry: string;
+    jobBoardEscrow?: string;
   };
+};
+
+export type JobSummary = {
+  job_id: number;
+  owner: string;
+  agent_id: number | null;
+  job_uri: string | null;
+  job_hash: string | null;
+  payment_token: string | null;
+  budget_amount: string | null;
+  deadline: number | null;
+  pass_threshold: number | null;
+  dispute_window_seconds: number | null;
+  status: string | null;
+  posted_block: number | null;
+  awarded_block: number | null;
+  finalized_block: number | null;
+  released_amount: string | null;
+};
+
+export type JobDetailResponse = {
+  job: JobSummary;
+  milestones: Array<{
+    job_id: number;
+    milestone_index: number;
+    milestone_uri: string | null;
+    milestone_hash: string | null;
+    weight_bps: number | null;
+    paid: number;
+  }>;
+  validations: Array<{
+    job_id: number;
+    milestone_index: number;
+    validator: string | null;
+    request_hash: string | null;
+    request_uri: string | null;
+    request_block: number | null;
+    response_score: number | null;
+    response_hash: string | null;
+    response_uri: string | null;
+    tag: string | null;
+    response_block: number | null;
+  }>;
 };
 
 const baseUrl = process.env.NEXT_PUBLIC_INDEXER_URL ?? "http://127.0.0.1:4000";
@@ -87,4 +131,20 @@ export async function fetchHealth(): Promise<HealthResponse> {
     throw new Error("Failed to load health");
   }
   return (await response.json()) as HealthResponse;
+}
+
+export async function fetchJobs(): Promise<JobSummary[]> {
+  const response = await fetch(`${baseUrl}/jobs`);
+  if (!response.ok) {
+    throw new Error("Failed to load jobs");
+  }
+  return (await response.json()) as JobSummary[];
+}
+
+export async function fetchJob(jobId: number): Promise<JobDetailResponse> {
+  const response = await fetch(`${baseUrl}/jobs/${jobId}`);
+  if (!response.ok) {
+    throw new Error("Job not found");
+  }
+  return (await response.json()) as JobDetailResponse;
 }

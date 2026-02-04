@@ -5,10 +5,16 @@ import { config } from "./config.js";
 import {
   applySchema,
   createDb,
+  getJobById,
+  getAgentScore,
   getAgentById,
   getAgentFeedback,
   getAgentValidations,
+  listJobMilestones,
+  listJobValidations,
+  listJobs,
   listAgents,
+  listAgentScores,
 } from "./db.js";
 import { followHead, getLastSyncedBlock, syncFrom } from "./indexer.js";
 import { loadDeployments } from "./eth.js";
@@ -60,6 +66,42 @@ app.get("/agents/:agentId/feedback", (req, res) => {
 app.get("/agents/:agentId/validations", (req, res) => {
   const agentId = Number(req.params.agentId);
   res.json(getAgentValidations(db, agentId));
+});
+
+app.get("/score", (req, res) => {
+  const agentId = typeof req.query.agentId === "string" ? Number(req.query.agentId) : null;
+  if (agentId !== null && Number.isNaN(agentId)) {
+    res.status(400).json({ error: "Invalid agentId" });
+    return;
+  }
+  if (agentId !== null) {
+    const score = getAgentScore(db, agentId);
+    if (!score) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.json(score);
+    return;
+  }
+  res.json(listAgentScores(db));
+});
+
+app.get("/jobs", (_req, res) => {
+  res.json(listJobs(db));
+});
+
+app.get("/jobs/:jobId", (req, res) => {
+  const jobId = Number(req.params.jobId);
+  const job = getJobById(db, jobId);
+  if (!job) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  res.json({
+    job,
+    milestones: listJobMilestones(db, jobId),
+    validations: listJobValidations(db, jobId),
+  });
 });
 
 app.listen(config.port, () => {
