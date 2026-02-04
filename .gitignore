@@ -1,0 +1,15 @@
+node_modules
+.DS_Store
+.env
+.next
+dist
+out
+coverage
+pnpm-lock.yaml
+deployments/*.json
+services/indexer/data
+services/indexer/*.sqlite
+services/indexer/*.sqlite-journal
+contracts/broadcast
+contracts/out
+contracts/cache
