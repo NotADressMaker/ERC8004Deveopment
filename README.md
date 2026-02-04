@@ -46,6 +46,18 @@ Endpoints:
 - `GET /agents/:agentId/feedback`
 - `GET /agents/:agentId/validations`
 
+## Validator Service
+
+The validator service accepts validation requests, runs a verification plugin, and can submit validation responses to
+the on-chain `ValidationRegistry`.
+
+Endpoints:
+
+- `GET /health`
+- `POST /validate`
+
+See `services/validator/README.md` for payload examples and plugin details.
+
 ## Dashboard
 
 Browse agents, reputation, and validations without a wallet. Wallet is only required for submit actions.
