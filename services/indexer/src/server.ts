@@ -9,6 +9,9 @@ import {
   getAgentById,
   getAgentFeedback,
   getAgentValidations,
+  listJobMilestones,
+  listJobValidations,
+  listJobs,
   listAgents,
   listAgentScores,
 } from "./db.js";

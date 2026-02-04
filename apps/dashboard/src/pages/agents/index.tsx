@@ -39,9 +39,14 @@ export default function AgentsPage() {
           <h1>Agents</h1>
           <p>Browse registered agents and their reputation scores.</p>
         </div>
-        <Link className="button" href="/submit">
-          Submit Actions
-        </Link>
+        <div className="button-row">
+          <Link className="button" href="/jobs">
+            View Jobs
+          </Link>
+          <Link className="button" href="/submit">
+            Submit Actions
+          </Link>
+        </div>
       </header>
 
       <div className="search-row">

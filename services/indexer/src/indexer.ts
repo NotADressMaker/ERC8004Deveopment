@@ -3,6 +3,11 @@ import type { Db } from "./db.js";
 import {
   getMeta,
   insertFeedback,
+  upsertJob,
+  upsertJobDispute,
+  upsertJobMilestone,
+  upsertJobProof,
+  upsertJobValidation,
   insertValidationRequest,
   insertValidationResponse,
   revokeFeedback,
@@ -10,7 +15,7 @@ import {
   upsertAgent,
   updateAgentUri,
 } from "./db.js";
-import { IDENTITY_ABI, REPUTATION_ABI, VALIDATION_ABI, type Deployments } from "./eth.js";
+import { IDENTITY_ABI, JOB_BOARD_ABI, REPUTATION_ABI, VALIDATION_ABI, type Deployments } from "./eth.js";
 
 export type IndexerContext = {
   provider: JsonRpcProvider;
@@ -21,11 +26,13 @@ export type IndexerContext = {
 const identityInterface = new Interface(IDENTITY_ABI);
 const reputationInterface = new Interface(REPUTATION_ABI);
 const validationInterface = new Interface(VALIDATION_ABI);
+const jobBoardInterface = new Interface(JOB_BOARD_ABI);
 
 export async function syncOnce(context: IndexerContext, fromBlock: number, toBlock: number): Promise<void> {
   await syncIdentity(context, fromBlock, toBlock);
   await syncReputation(context, fromBlock, toBlock);
   await syncValidation(context, fromBlock, toBlock);
+  await syncJobBoard(context, fromBlock, toBlock);
   setMeta(context.db, "last_synced_block", String(toBlock));
 }
 
@@ -146,6 +153,238 @@ async function syncValidation(context: IndexerContext, fromBlock: number, toBloc
         response_uri: responseURI,
         tag,
         block_number: log.blockNumber ?? 0,
+      });
+    }
+  }
+}
+
+async function syncJobBoard(context: IndexerContext, fromBlock: number, toBlock: number): Promise<void> {
+  const { provider, deployments, db } = context;
+  if (!deployments.jobBoardEscrow) {
+    return;
+  }
+  const logs = await provider.getLogs({
+    address: deployments.jobBoardEscrow,
+    fromBlock,
+    toBlock,
+  });
+  for (const log of logs) {
+    const parsed = jobBoardInterface.parseLog(log);
+    if (!parsed) {
+      continue;
+    }
+    if (parsed.name === "JobPosted") {
+      const [
+        jobId,
+        owner,
+        paymentToken,
+        budgetAmount,
+        deadline,
+        passThreshold,
+        disputeWindowSeconds,
+        jobURI,
+        jobHash,
+      ] = parsed.args;
+      upsertJob(db, {
+        job_id: Number(jobId),
+        owner,
+        agent_id: null,
+        job_uri: jobURI,
+        job_hash: String(jobHash),
+        payment_token: paymentToken,
+        budget_amount: budgetAmount.toString(),
+        deadline: Number(deadline),
+        pass_threshold: Number(passThreshold),
+        dispute_window_seconds: Number(disputeWindowSeconds),
+        status: "open",
+        posted_block: log.blockNumber ?? null,
+        awarded_block: null,
+        finalized_block: null,
+        released_amount: "0",
+      });
+    }
+    if (parsed.name === "MilestoneAdded") {
+      const [jobId, milestoneIndex, milestoneURI, milestoneHash, weightBps] = parsed.args;
+      upsertJobMilestone(db, {
+        job_id: Number(jobId),
+        milestone_index: Number(milestoneIndex),
+        milestone_uri: milestoneURI,
+        milestone_hash: String(milestoneHash),
+        weight_bps: Number(weightBps),
+        paid: 0,
+      });
+    }
+    if (parsed.name === "JobAwarded") {
+      const [jobId, agentId] = parsed.args;
+      upsertJob(db, {
+        job_id: Number(jobId),
+        owner: null,
+        agent_id: Number(agentId),
+        job_uri: null,
+        job_hash: null,
+        payment_token: null,
+        budget_amount: null,
+        deadline: null,
+        pass_threshold: null,
+        dispute_window_seconds: null,
+        status: "awarded",
+        posted_block: null,
+        awarded_block: log.blockNumber ?? null,
+        finalized_block: null,
+        released_amount: null,
+      });
+    }
+    if (parsed.name === "ProofSubmitted") {
+      const [jobId, milestoneIndex, proofURI, proofHash] = parsed.args;
+      upsertJobProof(db, {
+        job_id: Number(jobId),
+        milestone_index: Number(milestoneIndex),
+        proof_uri: proofURI,
+        proof_hash: String(proofHash),
+        block_number: log.blockNumber ?? null,
+      });
+    }
+    if (parsed.name === "ValidationRequested") {
+      const [jobId, milestoneIndex, validator, requestHash, requestURI] = parsed.args;
+      upsertJobValidation(db, {
+        job_id: Number(jobId),
+        milestone_index: Number(milestoneIndex),
+        validator,
+        request_hash: String(requestHash),
+        request_uri: requestURI,
+        request_block: log.blockNumber ?? null,
+        response_score: null,
+        response_hash: null,
+        response_uri: null,
+        tag: null,
+        response_block: null,
+      });
+    }
+    if (parsed.name === "JobFinalized") {
+      const [jobId, milestoneIndex, _payoutAmount, releasedAmount, requestHash] = parsed.args;
+      upsertJob(db, {
+        job_id: Number(jobId),
+        owner: null,
+        agent_id: null,
+        job_uri: null,
+        job_hash: null,
+        payment_token: null,
+        budget_amount: null,
+        deadline: null,
+        pass_threshold: null,
+        dispute_window_seconds: null,
+        status: "finalized",
+        posted_block: null,
+        awarded_block: null,
+        finalized_block: log.blockNumber ?? null,
+        released_amount: releasedAmount.toString(),
+      });
+      upsertJobValidation(db, {
+        job_id: Number(jobId),
+        milestone_index: Number(milestoneIndex),
+        validator: null,
+        request_hash: String(requestHash),
+        request_uri: null,
+        request_block: null,
+        response_score: null,
+        response_hash: null,
+        response_uri: null,
+        tag: null,
+        response_block: log.blockNumber ?? null,
+      });
+      void _payoutAmount;
+    }
+    if (parsed.name === "DisputeOpened") {
+      const [jobId, proposedPayoutBps, disputeURI, disputeHash] = parsed.args;
+      upsertJobDispute(db, {
+        job_id: Number(jobId),
+        proposed_payout_bps: Number(proposedPayoutBps),
+        dispute_uri: disputeURI,
+        dispute_hash: String(disputeHash),
+        accepted: 0,
+        opened_block: log.blockNumber ?? null,
+        accepted_block: null,
+        reclaimed_block: null,
+        remainder_amount: null,
+      });
+      upsertJob(db, {
+        job_id: Number(jobId),
+        owner: null,
+        agent_id: null,
+        job_uri: null,
+        job_hash: null,
+        payment_token: null,
+        budget_amount: null,
+        deadline: null,
+        pass_threshold: null,
+        dispute_window_seconds: null,
+        status: "disputed",
+        posted_block: null,
+        awarded_block: null,
+        finalized_block: null,
+        released_amount: null,
+      });
+    }
+    if (parsed.name === "DisputeAccepted") {
+      const [jobId, payoutAmount, remainderAmount] = parsed.args;
+      upsertJobDispute(db, {
+        job_id: Number(jobId),
+        proposed_payout_bps: null,
+        dispute_uri: null,
+        dispute_hash: null,
+        accepted: 1,
+        opened_block: null,
+        accepted_block: log.blockNumber ?? null,
+        reclaimed_block: null,
+        remainder_amount: remainderAmount.toString(),
+      });
+      upsertJob(db, {
+        job_id: Number(jobId),
+        owner: null,
+        agent_id: null,
+        job_uri: null,
+        job_hash: null,
+        payment_token: null,
+        budget_amount: null,
+        deadline: null,
+        pass_threshold: null,
+        dispute_window_seconds: null,
+        status: "finalized",
+        posted_block: null,
+        awarded_block: null,
+        finalized_block: log.blockNumber ?? null,
+        released_amount: payoutAmount.toString(),
+      });
+    }
+    if (parsed.name === "RemainderReclaimed") {
+      const [jobId, remainderAmount] = parsed.args;
+      upsertJobDispute(db, {
+        job_id: Number(jobId),
+        proposed_payout_bps: null,
+        dispute_uri: null,
+        dispute_hash: null,
+        accepted: 0,
+        opened_block: null,
+        accepted_block: null,
+        reclaimed_block: log.blockNumber ?? null,
+        remainder_amount: remainderAmount.toString(),
+      });
+      upsertJob(db, {
+        job_id: Number(jobId),
+        owner: null,
+        agent_id: null,
+        job_uri: null,
+        job_hash: null,
+        payment_token: null,
+        budget_amount: null,
+        deadline: null,
+        pass_threshold: null,
+        dispute_window_seconds: null,
+        status: "reclaimed",
+        posted_block: null,
+        awarded_block: null,
+        finalized_block: log.blockNumber ?? null,
+        released_amount: "0",
       });
     }
   }

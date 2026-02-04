@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IdentityRegistry} from "../src/IdentityRegistry.sol";
+import {JobBoardEscrow} from "../src/JobBoardEscrow.sol";
 import {ReputationRegistry} from "../src/ReputationRegistry.sol";
 import {ValidationRegistry} from "../src/ValidationRegistry.sol";
 
@@ -25,6 +26,7 @@ contract DemoData {
         IdentityRegistry identity = IdentityRegistry(vm.parseJsonAddress(json, ".identityRegistry"));
         ReputationRegistry reputation = ReputationRegistry(vm.parseJsonAddress(json, ".reputationRegistry"));
         ValidationRegistry validation = ValidationRegistry(vm.parseJsonAddress(json, ".validationRegistry"));
+        JobBoardEscrow jobBoard = JobBoardEscrow(vm.parseJsonAddress(json, ".jobBoardEscrow"));
 
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerKey);
@@ -95,6 +97,55 @@ contract DemoData {
             keccak256(abi.encodePacked("response-2")),
             "reliability"
         );
+
+        uint256 jobId = jobBoard.postJob{value: 1 ether}(
+            "ipfs://jobs/job-1.json",
+            keccak256(abi.encodePacked("job-1")),
+            address(0),
+            1 ether,
+            block.timestamp + 14 days,
+            2,
+            70
+        );
+
+        string[] memory milestoneURIs = new string[](2);
+        milestoneURIs[0] = "ipfs://jobs/job-1/milestone-0.json";
+        milestoneURIs[1] = "ipfs://jobs/job-1/milestone-1.json";
+
+        bytes32[] memory milestoneHashes = new bytes32[](2);
+        milestoneHashes[0] = keccak256(abi.encodePacked("job-1-milestone-0"));
+        milestoneHashes[1] = keccak256(abi.encodePacked("job-1-milestone-1"));
+
+        uint16[] memory weightBps = new uint16[](2);
+        weightBps[0] = 6000;
+        weightBps[1] = 4000;
+
+        jobBoard.addMilestones(jobId, milestoneURIs, milestoneHashes, weightBps);
+        jobBoard.award(jobId, agent1);
+
+        jobBoard.submitProof(
+            jobId,
+            0,
+            "ipfs://jobs/job-1/proof-0.json",
+            keccak256(abi.encodePacked("job-1-proof-0"))
+        );
+
+        bytes32 jobRequestHash = keccak256(abi.encodePacked("job-1-request-0"));
+        jobBoard.requestValidation(
+            jobId,
+            address(this),
+            0,
+            "ipfs://jobs/job-1/request-0.json",
+            jobRequestHash
+        );
+        validation.validationResponse(
+            jobRequestHash,
+            85,
+            "ipfs://jobs/job-1/response-0.json",
+            keccak256(abi.encodePacked("job-1-response-0")),
+            "milestone-0"
+        );
+        jobBoard.finalize(jobId, 0, jobRequestHash);
 
         vm.stopBroadcast();
     }

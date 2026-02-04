@@ -318,3 +318,24 @@ export function getAgentValidations(db: Db, agentId: number): Array<ValidationRe
     )
     .all(agentId) as Array<ValidationRequestRecord & ValidationResponseRecord>;
 }
+
+export function listJobs(db: Db): JobRecord[] {
+  return db.prepare("SELECT * FROM jobs ORDER BY job_id DESC").all() as JobRecord[];
+}
+
+export function getJobById(db: Db, jobId: number): JobRecord | null {
+  const row = db.prepare("SELECT * FROM jobs WHERE job_id = ?").get(jobId) as JobRecord | undefined;
+  return row ?? null;
+}
+
+export function listJobMilestones(db: Db, jobId: number): JobMilestoneRecord[] {
+  return db
+    .prepare("SELECT * FROM job_milestones WHERE job_id = ? ORDER BY milestone_index")
+    .all(jobId) as JobMilestoneRecord[];
+}
+
+export function listJobValidations(db: Db, jobId: number): JobValidationRecord[] {
+  return db
+    .prepare("SELECT * FROM job_validations WHERE job_id = ? ORDER BY milestone_index")
+    .all(jobId) as JobValidationRecord[];
+}

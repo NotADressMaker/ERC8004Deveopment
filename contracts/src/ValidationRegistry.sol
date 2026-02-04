@@ -23,8 +23,16 @@ contract ValidationRegistry {
         bytes32 requestHash;
     }
 
+    struct ValidationResponse {
+        uint256 response0to100;
+        bytes32 responseHash;
+        string responseURI;
+        string tag;
+    }
+
     mapping(bytes32 => ValidationRequest) public requests;
     mapping(bytes32 => bool) public responses;
+    mapping(bytes32 => ValidationResponse) public responsesByRequest;
 
     function validationRequest(
         address validator,
@@ -52,6 +60,12 @@ contract ValidationRegistry {
         require(requests[requestHash].validator != address(0), "missing request");
         require(!responses[responseHash], "exists");
         responses[responseHash] = true;
+        responsesByRequest[requestHash] = ValidationResponse({
+            response0to100: response0to100,
+            responseHash: responseHash,
+            responseURI: responseURI,
+            tag: tag
+        });
         emit ResponseAppended(requestHash, responseHash, response0to100, responseURI, tag);
     }
 }

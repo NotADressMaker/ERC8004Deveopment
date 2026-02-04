@@ -49,6 +49,12 @@ a {
   color: #0f172a;
 }
 
+.button-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .search-row {
   margin-bottom: 1.5rem;
 }

@@ -59,6 +59,12 @@ Endpoints:
 
 See `services/validator/README.md` for payload examples and plugin details.
 
+## Job Board + Escrow
+
+`JobBoardEscrow` posts jobs with off-chain job specs and on-chain commitment hashes. Payments are escrowed and released
+after validator-approved proofs via `ValidationRegistry`, with optional milestone-based payouts and a dispute window.
+If a dispute proposal is not accepted before the window closes, the job owner can reclaim the remaining escrow.
+
 ## Dashboard
 
 Browse agents, reputation, and validations without a wallet. Wallet is only required for submit actions.

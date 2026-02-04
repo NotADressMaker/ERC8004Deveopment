@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {IdentityRegistry} from "../src/IdentityRegistry.sol";
+import {JobBoardEscrow} from "../src/JobBoardEscrow.sol";
 import {ReputationRegistry} from "../src/ReputationRegistry.sol";
 import {ValidationRegistry} from "../src/ValidationRegistry.sol";
 
@@ -22,6 +23,7 @@ contract Deploy {
         IdentityRegistry identity = new IdentityRegistry();
         ReputationRegistry reputation = new ReputationRegistry();
         ValidationRegistry validation = new ValidationRegistry();
+        JobBoardEscrow jobBoard = new JobBoardEscrow(address(identity), address(validation), 7 days);
         vm.stopBroadcast();
 
         string memory json = string(
@@ -34,6 +36,8 @@ contract Deploy {
                 _toHexString(address(reputation)),
                 '","validationRegistry":"',
                 _toHexString(address(validation)),
+                '","jobBoardEscrow":"',
+                _toHexString(address(jobBoard)),
                 '"}'
             )
         );

@@ -17,11 +17,24 @@ export const VALIDATION_ABI = [
   "event ResponseAppended(bytes32 indexed requestHash,bytes32 indexed responseHash,uint256 response0to100,string responseURI,string tag)",
 ];
 
+export const JOB_BOARD_ABI = [
+  "event JobPosted(uint256 indexed jobId,address indexed owner,address indexed paymentToken,uint256 budgetAmount,uint256 deadline,uint16 passThreshold,uint64 disputeWindowSeconds,string jobURI,bytes32 jobHash,uint256 milestoneCount)",
+  "event MilestoneAdded(uint256 indexed jobId,uint256 indexed milestoneIndex,string milestoneURI,bytes32 milestoneHash,uint16 weightBps)",
+  "event JobAwarded(uint256 indexed jobId,uint256 indexed agentId)",
+  "event ProofSubmitted(uint256 indexed jobId,uint256 indexed milestoneIndex,string proofURI,bytes32 proofHash)",
+  "event ValidationRequested(uint256 indexed jobId,uint256 indexed milestoneIndex,address indexed validator,bytes32 requestHash,string requestURI)",
+  "event JobFinalized(uint256 indexed jobId,uint256 indexed milestoneIndex,uint256 payoutAmount,uint256 releasedAmount,bytes32 requestHash)",
+  "event DisputeOpened(uint256 indexed jobId,uint16 proposedPayoutBps,string disputeURI,bytes32 disputeHash)",
+  "event DisputeAccepted(uint256 indexed jobId,uint256 payoutAmount,uint256 remainderAmount)",
+  "event RemainderReclaimed(uint256 indexed jobId,uint256 remainderAmount)",
+];
+
 export type Deployments = {
   chainId: number;
   identityRegistry: string;
   reputationRegistry: string;
   validationRegistry: string;
+  jobBoardEscrow: string;
 };
 
 export function loadDeployments(): Deployments {
