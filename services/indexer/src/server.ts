@@ -14,6 +14,7 @@ import {
   listJobs,
   listAgents,
   listAgentScores,
+  getPlatformStats,
 } from "./db.js";
 import { followHead, getLastSyncedBlock, syncFrom } from "./indexer.js";
 import { loadDeployments } from "./eth.js";
@@ -83,6 +84,10 @@ app.get("/score", (req, res) => {
     return;
   }
   res.json(listAgentScores(db));
+});
+
+app.get("/stats", (_req, res) => {
+  res.json(getPlatformStats(db));
 });
 
 app.listen(config.port, () => {

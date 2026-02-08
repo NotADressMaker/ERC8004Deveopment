@@ -90,6 +90,14 @@ export type JobDetailResponse = {
   }>;
 };
 
+export type PlatformStats = {
+  agent_count: number;
+  feedback_count: number;
+  validation_request_count: number;
+  validation_response_count: number;
+  reviewer_count: number;
+};
+
 const baseUrl = process.env.NEXT_PUBLIC_INDEXER_URL ?? "http://127.0.0.1:4000";
 
 export async function fetchAgents(search?: string): Promise<AgentSummary[]> {
@@ -131,6 +139,14 @@ export async function fetchHealth(): Promise<HealthResponse> {
     throw new Error("Failed to load health");
   }
   return (await response.json()) as HealthResponse;
+}
+
+export async function fetchStats(): Promise<PlatformStats> {
+  const response = await fetch(`${baseUrl}/stats`);
+  if (!response.ok) {
+    throw new Error("Failed to load stats");
+  }
+  return (await response.json()) as PlatformStats;
 }
 
 export async function fetchJobs(): Promise<JobSummary[]> {
