@@ -60,6 +60,14 @@ export type AgentScoreBreakdown = {
   reputation_score: number;
 };
 
+export type PlatformStats = {
+  agent_count: number;
+  feedback_count: number;
+  validation_request_count: number;
+  validation_response_count: number;
+  reviewer_count: number;
+};
+
 export function createDb(dbPath: string): Db {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   return new Database(dbPath);
@@ -317,6 +325,19 @@ export function getAgentValidations(db: Db, agentId: number): Array<ValidationRe
        ORDER BY r.block_number DESC`
     )
     .all(agentId) as Array<ValidationRequestRecord & ValidationResponseRecord>;
+}
+
+export function getPlatformStats(db: Db): PlatformStats {
+  return db
+    .prepare(
+      `SELECT
+        (SELECT COUNT(*) FROM agents) AS agent_count,
+        (SELECT COUNT(*) FROM feedback) AS feedback_count,
+        (SELECT COUNT(*) FROM validation_requests) AS validation_request_count,
+        (SELECT COUNT(*) FROM validation_responses) AS validation_response_count,
+        (SELECT COUNT(*) FROM reviewer_trust) AS reviewer_count`
+    )
+    .get() as PlatformStats;
 }
 
 export function listJobs(db: Db): JobRecord[] {
