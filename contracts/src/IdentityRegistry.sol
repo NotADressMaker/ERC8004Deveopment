@@ -2,23 +2,28 @@
 pragma solidity ^0.8.24;
 
 import {EIP712WalletAuth} from "./lib/EIP712WalletAuth.sol";
+import {Ownable} from "./lib/Ownable.sol";
 
 interface IERC1271 {
     function isValidSignature(bytes32 hash, bytes memory signature) external view returns (bytes4 magicValue);
 }
 
-contract IdentityRegistry {
+contract IdentityRegistry is Ownable {
     using EIP712WalletAuth for bytes32;
 
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
     event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
     event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
-    event Registered(uint256 indexed agentId, address indexed owner, string agentURI);
-    event AgentURIUpdated(uint256 indexed agentId, string agentURI);
+    event Registered(uint256 indexed agentId, address indexed owner, string agentURI, bytes32 metadataHash, uint256 registryVersion);
+    event AgentURIUpdated(uint256 indexed agentId, string agentURI, bytes32 metadataHash, uint256 registryVersion);
+    event RegistryFrozen(uint256 registryVersion);
 
     string public constant name = "ERC8004 Identity Registry";
     string public constant symbol = "AGENT";
-    string public constant VERSION = "1";
+    string public constant VERSION = "2";
+    uint256 public constant REGISTRY_VERSION = 2;
+    uint256 public constant MIN_URI_LENGTH = 8;
+    uint256 public constant MAX_URI_LENGTH = 2048;
 
     uint256 private _nextId = 1;
 
@@ -30,6 +35,8 @@ contract IdentityRegistry {
     mapping(uint256 => mapping(bytes32 => string)) private _metadata;
     mapping(uint256 => address) public agentWallet;
     mapping(uint256 => uint256) public nonces;
+    mapping(uint256 => bytes32) private _metadataHashes;
+    bool public frozen;
 
     struct Metadata {
         string key;
@@ -50,6 +57,11 @@ contract IdentityRegistry {
     function tokenURI(uint256 tokenId) public view returns (string memory) {
         require(_owners[tokenId] != address(0), "nonexistent");
         return _tokenURIs[tokenId];
+    }
+
+    function metadataHash(uint256 tokenId) external view returns (bytes32) {
+        require(_owners[tokenId] != address(0), "nonexistent");
+        return _metadataHashes[tokenId];
     }
 
     function getMetadata(uint256 tokenId, string memory key) external view returns (string memory) {
@@ -110,9 +122,13 @@ contract IdentityRegistry {
     }
 
     function setAgentURI(uint256 agentId, string memory agentURI) external {
+        require(!frozen, "frozen");
         require(_isApprovedOrOwner(msg.sender, agentId), "not authorized");
+        _validateAgentURI(agentURI);
         _tokenURIs[agentId] = agentURI;
-        emit AgentURIUpdated(agentId, agentURI);
+        bytes32 hash = keccak256(bytes(agentURI));
+        _metadataHashes[agentId] = hash;
+        emit AgentURIUpdated(agentId, agentURI, hash, REGISTRY_VERSION);
     }
 
     function setAgentWallet(
@@ -121,6 +137,7 @@ contract IdentityRegistry {
         uint256 deadline,
         bytes calldata signature
     ) external {
+        require(!frozen, "frozen");
         require(block.timestamp <= deadline, "expired");
         address owner = ownerOf(agentId);
         bytes32 domain = EIP712WalletAuth.domainSeparator(name, VERSION, block.chainid, address(this));
@@ -132,13 +149,35 @@ contract IdentityRegistry {
         _metadata[agentId][keccak256(bytes("agentWallet"))] = _toHexString(newAgentWallet);
     }
 
+    function freezeRegistry() external onlyOwner {
+        frozen = true;
+        emit RegistryFrozen(REGISTRY_VERSION);
+    }
+
+    function migrateAgentURI(uint256 agentId, string memory agentURI, bytes32 metadataHashValue) external onlyOwner {
+        require(frozen, "not frozen");
+        require(_owners[agentId] != address(0), "nonexistent");
+        if (bytes(agentURI).length > 0) {
+            _validateAgentURI(agentURI);
+        }
+        _tokenURIs[agentId] = agentURI;
+        _metadataHashes[agentId] = metadataHashValue;
+        emit AgentURIUpdated(agentId, agentURI, metadataHashValue, REGISTRY_VERSION);
+    }
+
     function _register(address to, string memory agentURI, Metadata[] memory metadata) internal returns (uint256) {
+        require(!frozen, "frozen");
+        if (bytes(agentURI).length > 0) {
+            _validateAgentURI(agentURI);
+        }
         uint256 tokenId = _nextId++;
         _balances[to] += 1;
         _owners[tokenId] = to;
         _tokenURIs[tokenId] = agentURI;
+        bytes32 hash = keccak256(bytes(agentURI));
+        _metadataHashes[tokenId] = hash;
         emit Transfer(address(0), to, tokenId);
-        emit Registered(tokenId, to, agentURI);
+        emit Registered(tokenId, to, agentURI, hash, REGISTRY_VERSION);
         _applyMetadata(tokenId, metadata);
         return tokenId;
     }
@@ -186,6 +225,27 @@ contract IdentityRegistry {
 
     function _isContract(address account) internal view returns (bool) {
         return account.code.length > 0;
+    }
+
+    function _validateAgentURI(string memory agentURI) internal pure {
+        bytes memory data = bytes(agentURI);
+        require(data.length >= MIN_URI_LENGTH && data.length <= MAX_URI_LENGTH, "invalid uri");
+        bool isIpfs = _hasPrefix(data, "ipfs://");
+        bool isHttps = _hasPrefix(data, "https://");
+        require(isIpfs || isHttps, "invalid uri");
+    }
+
+    function _hasPrefix(bytes memory value, string memory prefix) internal pure returns (bool) {
+        bytes memory prefixBytes = bytes(prefix);
+        if (value.length < prefixBytes.length) {
+            return false;
+        }
+        for (uint256 i = 0; i < prefixBytes.length; i++) {
+            if (value[i] != prefixBytes[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     function _parseAddress(string memory value) internal pure returns (address) {

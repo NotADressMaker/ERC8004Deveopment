@@ -34,6 +34,82 @@ The deploy script writes deployment addresses to:
 deployments/local.json
 ```
 
+### Registry signing + attester controls
+
+**Gasless EIP-712 submissions (relayer flow):**
+
+Reputation `submitFeedbackBySig` and validation `submitValidationBySig` accept EIP-712 signatures. The relayer submits
+the transaction, while the signer is recorded as the author/attester. Each signer uses a monotonically increasing
+`nonces(address)` value and provides a `deadline` timestamp.
+
+Typed data (ReputationRegistry):
+
+```json
+{
+  "domain": {
+    "name": "ERC8004 Reputation Registry",
+    "version": "2",
+    "chainId": "<chainId>",
+    "verifyingContract": "<registryAddress>"
+  },
+  "types": {
+    "Feedback": [
+      { "name": "author", "type": "address" },
+      { "name": "agentId", "type": "uint256" },
+      { "name": "value", "type": "int256" },
+      { "name": "valueDecimals", "type": "uint8" },
+      { "name": "tag1", "type": "string" },
+      { "name": "tag2", "type": "string" },
+      { "name": "endpoint", "type": "string" },
+      { "name": "feedbackURI", "type": "string" },
+      { "name": "feedbackHash", "type": "bytes32" },
+      { "name": "nonce", "type": "uint256" },
+      { "name": "deadline", "type": "uint256" }
+    ]
+  },
+  "primaryType": "Feedback"
+}
+```
+
+Typed data (ValidationRegistry):
+
+```json
+{
+  "domain": {
+    "name": "ERC8004 Validation Registry",
+    "version": "2",
+    "chainId": "<chainId>",
+    "verifyingContract": "<registryAddress>"
+  },
+  "types": {
+    "Validation": [
+      { "name": "attester", "type": "address" },
+      { "name": "agentId", "type": "uint256" },
+      { "name": "validationType", "type": "bytes32" },
+      { "name": "proofURI", "type": "string" },
+      { "name": "proofHash", "type": "bytes32" },
+      { "name": "validationHash", "type": "bytes32" },
+      { "name": "nonce", "type": "uint256" },
+      { "name": "deadline", "type": "uint256" }
+    ]
+  },
+  "primaryType": "Validation"
+}
+```
+
+**Attester modes:**
+
+- `OPEN` (default): anyone can submit feedback or validations.
+- `ALLOWLIST`: only addresses approved by `setAllowlist(address,bool)` can submit.
+- `REGISTRY`: `setAttesterRegistry(address)` points to a registry implementing `IAttesterRegistry`, which supplies
+  `isAttester()` and a `weight()` (>= 1). Weight is emitted on events for indexer scoring.
+
+**Proof formats:**
+
+- `agentURI` and `proofURI` must be `ipfs://` or `https://` URIs with reasonable length bounds.
+- `metadataHash` is stored on-chain as `keccak256(bytes(agentURI))`.
+- `proofHash` is a `bytes32` commitment to the validation artifact contents or JSON payload.
+
 ## Indexer
 
 The indexer reads `deployments/local.json`, syncs on-chain events into SQLite, and provides a REST API.

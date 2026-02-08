@@ -3,6 +3,10 @@ pragma solidity ^0.8.24;
 
 import {IdentityRegistry} from "../src/IdentityRegistry.sol";
 
+interface Vm {
+    function expectRevert(bytes calldata) external;
+}
+
 contract Caller {
     function register(IdentityRegistry registry, string memory agentURI, string memory wallet)
         external
@@ -17,6 +21,7 @@ contract Caller {
 contract IdentityRegistryTest {
     IdentityRegistry private registry;
     Caller private caller;
+    Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     function setUp() public {
         registry = new IdentityRegistry();
@@ -25,13 +30,12 @@ contract IdentityRegistryTest {
 
     function testRegisterStoresMetadata() public {
         string memory wallet = _toHexString(address(0xBEEF));
-        uint256 agentId = caller.register(registry, "ipfs://agent/alpha.json", wallet);
+        string memory uri = "ipfs://agent/alpha.json";
+        uint256 agentId = caller.register(registry, uri, wallet);
 
         require(registry.ownerOf(agentId) == address(caller), "owner mismatch");
-        require(
-            keccak256(bytes(registry.tokenURI(agentId))) == keccak256(bytes("ipfs://agent/alpha.json")),
-            "uri mismatch"
-        );
+        require(keccak256(bytes(registry.tokenURI(agentId))) == keccak256(bytes(uri)), "uri mismatch");
+        require(registry.metadataHash(agentId) == keccak256(bytes(uri)), "metadata hash mismatch");
         require(registry.agentWallet(agentId) == address(0xBEEF), "wallet mismatch");
         string memory stored = registry.getMetadata(agentId, "agentWallet");
         require(keccak256(bytes(stored)) == keccak256(bytes(wallet)), "metadata mismatch");
@@ -40,10 +44,16 @@ contract IdentityRegistryTest {
     function testSetAgentURI() public {
         uint256 agentId = registry.register("ipfs://agent/original.json");
         registry.setAgentURI(agentId, "ipfs://agent/updated.json");
+        require(keccak256(bytes(registry.tokenURI(agentId))) == keccak256(bytes("ipfs://agent/updated.json")), "update mismatch");
         require(
-            keccak256(bytes(registry.tokenURI(agentId))) == keccak256(bytes("ipfs://agent/updated.json")),
-            "update mismatch"
+            registry.metadataHash(agentId) == keccak256(bytes("ipfs://agent/updated.json")),
+            "metadata hash mismatch"
         );
+    }
+
+    function testRejectsInvalidURI() public {
+        vm.expectRevert(bytes("invalid uri"));
+        registry.register("ftp://invalid.json");
     }
 
     function _toHexString(address account) internal pure returns (string memory) {
